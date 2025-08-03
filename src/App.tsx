@@ -4,7 +4,6 @@ import FormPage from './components/FormPage';
 import RatePage from './components/RatePage';
 import ThankYouPage from './components/ThankYouPage';
 import AdminPage from './admin/AdminPage';
-import SetupChecker from './components/SetupChecker';
 import SystemReadyPopup from './components/SystemReadyPopup';
 
 function App() {
@@ -12,7 +11,6 @@ function App() {
     <UserProvider>
       <Router>
         <div className="min-h-screen">
-          <SetupChecker />
           <SystemReadyPopup 
             message="System is ready for evaluation! 🚀"
             type="success"
