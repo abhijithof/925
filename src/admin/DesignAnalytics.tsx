@@ -405,15 +405,15 @@ const DesignAnalytics: React.FC<DesignAnalyticsProps> = ({ responses, designs, l
                 <tr key={design.id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="py-4 px-4">
                     <div className="flex items-center space-x-3">
-                      <img
-                        src={design.imageUrl}
-                        alt={design.name}
-                        className="w-12 h-12 rounded-lg object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = 'https://via.placeholder.com/48x48/f3f4f6/9ca3af?text=D';
-                        }}
-                      />
+                                             <img
+                         src={design.imageUrl}
+                         alt={design.name}
+                         className="w-12 h-12 rounded-lg object-contain bg-gray-100"
+                         onError={(e) => {
+                           const target = e.target as HTMLImageElement;
+                           target.src = 'https://via.placeholder.com/48x48/f3f4f6/9ca3af?text=D';
+                         }}
+                       />
                       <div className="font-semibold text-gray-900">{design.name}</div>
                     </div>
                   </td>

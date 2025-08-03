@@ -453,7 +453,7 @@ const AdminPage: React.FC = () => {
                       <img
                         src={URL.createObjectURL(selectedFile)}
                         alt="Design preview"
-                        className="w-full max-w-lg mx-auto h-64 object-cover"
+                        className="w-full max-w-lg mx-auto h-64 object-contain bg-gray-100"
                       />
                     </div>
                   </div>
@@ -548,7 +548,7 @@ const AdminPage: React.FC = () => {
                         <img
                           src={design.imageUrl}
                           alt={design.name}
-                          className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-200"
+                          className="w-full h-48 object-contain bg-gray-100 group-hover:scale-105 transition-transform duration-200"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.src = 'https://via.placeholder.com/300x200/f3f4f6/9ca3af?text=Design+Image';
