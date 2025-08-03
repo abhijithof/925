@@ -97,8 +97,16 @@ const RatePage: React.FC = () => {
 
     setSubmitting(true);
     try {
+      // Clean userData to remove undefined values
+      const cleanUserData = {
+        name: userData.name || '',
+        age: userData.age || 0,
+        gender: userData.gender || '',
+        contact: userData.contact || ''
+      };
+
       const responseData = {
-        userData,
+        userData: cleanUserData,
         ratings,
         submittedAt: new Date().toISOString()
       };
