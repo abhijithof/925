@@ -195,7 +195,7 @@ const RatePage: React.FC = () => {
               <img
                 src={currentDesign.imageUrl}
                 alt={currentDesign.name}
-                className="w-full h-64 lg:h-80 object-cover"
+                className="w-full h-64 lg:h-80 object-contain bg-gray-100"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.src = 'https://via.placeholder.com/600x400/f3f4f6/9ca3af?text=Design+Image';
