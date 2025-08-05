@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { collection, addDoc, getDocs, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, updateDoc } from 'firebase/firestore';
 import { storage, db } from '../firebase/config';
 import UserAnalytics from './UserAnalytics';
 import DesignAnalytics from './DesignAnalytics';
@@ -39,6 +39,10 @@ const AdminPage: React.FC = () => {
   const [designName, setDesignName] = useState('');
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [editingFile, setEditingFile] = useState<File | null>(null);
+  const [updating, setUpdating] = useState(false);
   const [designs, setDesigns] = useState<Design[]>([]);
   const [responses, setResponses] = useState<Response[]>([]);
   const [loading, setLoading] = useState(false);
@@ -240,6 +244,87 @@ const AdminPage: React.FC = () => {
     setSelectedFile(null);
     setDesignName('');
     setMessage(null);
+  };
+
+  const handleEditDesign = (design: Design) => {
+    setEditing(design.id);
+    setEditingName(design.name);
+    setEditingFile(null);
+    setMessage(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditing(null);
+    setEditingName('');
+    setEditingFile(null);
+    setMessage(null);
+  };
+
+  const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    
+    if (file) {
+      if (file.type.startsWith('image/')) {
+        setEditingFile(file);
+        setMessage(null);
+      } else {
+        setMessage({ type: 'error', text: 'Please select an image file' });
+      }
+    }
+  };
+
+  const handleUpdateDesign = async (design: Design) => {
+    if (!editingName.trim()) {
+      setMessage({ type: 'error', text: 'Please provide a design name' });
+      return;
+    }
+
+    setUpdating(true);
+    setMessage(null);
+
+    try {
+      const updateData: any = {
+        name: editingName.trim()
+      };
+
+      // If a new image is selected, upload it first
+      if (editingFile) {
+        // Delete old image if it exists
+        if (design.filename) {
+          try {
+            const oldStorageRef = ref(storage, design.filename);
+            await deleteObject(oldStorageRef);
+          } catch (error) {
+            console.log('Old image not found or already deleted');
+          }
+        }
+
+        // Upload new image
+        const timestamp = Date.now();
+        const filename = `designs/${timestamp}_${editingFile.name}`;
+        const storageRef = ref(storage, filename);
+        const snapshot = await uploadBytes(storageRef, editingFile);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+
+        updateData.imageUrl = downloadURL;
+        updateData.filename = filename;
+      }
+
+      // Update the design document in Firestore
+      await updateDoc(doc(db, 'designs', design.id), updateData);
+
+      setMessage({ type: 'success', text: 'Design updated successfully!' });
+      handleCancelEdit();
+      fetchDesigns(); // Refresh the designs list
+    } catch (error) {
+      console.error('Error updating design:', error);
+      setMessage({ 
+        type: 'error', 
+        text: `Failed to update design: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      });
+    } finally {
+      setUpdating(false);
+    }
   };
 
   if (!isAuthenticated) {
@@ -544,48 +629,146 @@ const AdminPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {designs.map((design) => (
                     <div key={design.id} className="card-interactive p-6 group">
-                      <div className="relative overflow-hidden rounded-xl mb-4">
-                        <img
-                          src={design.imageUrl}
-                          alt={design.name}
-                          className="w-full h-48 object-contain bg-gray-100 group-hover:scale-105 transition-transform duration-200"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = 'https://via.placeholder.com/300x200/f3f4f6/9ca3af?text=Design+Image';
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900 mb-2 truncate" title={design.name}>
-                          {design.name}
-                        </h3>
-                        <p className="text-caption text-gray-500 mb-4">
-                          {new Date(design.uploadedAt).toLocaleDateString()}
-                        </p>
-                        <button
-                          onClick={() => handleDeleteDesign(design)}
-                          disabled={deleting === design.id}
-                          className={`btn w-full ${
-                            deleting === design.id
-                              ? 'btn-secondary opacity-50 cursor-not-allowed'
-                              : 'btn-error'
-                          }`}
-                        >
-                          {deleting === design.id ? (
-                            <>
-                              <div className="loading-spinner w-4 h-4 mr-2"></div>
-                              <span>Deleting...</span>
-                            </>
-                          ) : (
-                            <>
-                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                              <span>Delete</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
+                      {editing === design.id ? (
+                        // Edit Mode
+                        <div className="space-y-4">
+                          <div className="relative overflow-hidden rounded-xl mb-4">
+                            <img
+                              src={editingFile ? URL.createObjectURL(editingFile) : design.imageUrl}
+                              alt={design.name}
+                              className="w-full h-48 object-contain bg-gray-100"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = 'https://via.placeholder.com/300x200/f3f4f6/9ca3af?text=Design+Image';
+                              }}
+                            />
+                          </div>
+                          
+                          <div className="space-y-4">
+                            <div>
+                              <label className="label text-sm">Design Name</label>
+                              <input
+                                type="text"
+                                value={editingName}
+                                onChange={(e) => setEditingName(e.target.value)}
+                                className="input text-sm"
+                                placeholder="Enter design name"
+                              />
+                            </div>
+                            
+                            <div>
+                              <label className="label text-sm">Update Image (Optional)</label>
+                              <div className="relative">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleEditFileChange}
+                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                />
+                                <div className="border-2 border-dashed border-gray-300 rounded-lg px-4 py-3 text-center hover:border-primary-400 transition-colors cursor-pointer">
+                                  <p className="text-sm font-medium text-gray-900">
+                                    {editingFile ? editingFile.name : "Click to change image"}
+                                  </p>
+                                  <p className="text-xs text-gray-500">JPG, PNG, GIF, WebP</p>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => handleUpdateDesign(design)}
+                                disabled={updating || !editingName.trim()}
+                                className={`btn flex-1 ${
+                                  updating || !editingName.trim()
+                                    ? 'btn-secondary opacity-50 cursor-not-allowed'
+                                    : 'btn-primary'
+                                }`}
+                              >
+                                {updating ? (
+                                  <>
+                                    <div className="loading-spinner w-4 h-4 mr-2"></div>
+                                    <span>Updating...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>Save</span>
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                onClick={handleCancelEdit}
+                                disabled={updating}
+                                className="btn btn-outline flex-1"
+                              >
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                                <span>Cancel</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        // View Mode
+                        <>
+                          <div className="relative overflow-hidden rounded-xl mb-4">
+                            <img
+                              src={design.imageUrl}
+                              alt={design.name}
+                              className="w-full h-48 object-contain bg-gray-100 group-hover:scale-105 transition-transform duration-200"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = 'https://via.placeholder.com/300x200/f3f4f6/9ca3af?text=Design+Image';
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-gray-900 mb-2 truncate" title={design.name}>
+                              {design.name}
+                            </h3>
+                            <p className="text-caption text-gray-500 mb-4">
+                              {new Date(design.uploadedAt).toLocaleDateString()}
+                            </p>
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => handleEditDesign(design)}
+                                className="btn btn-primary flex-1"
+                              >
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDesign(design)}
+                                disabled={deleting === design.id}
+                                className={`btn ${
+                                  deleting === design.id
+                                    ? 'btn-secondary opacity-50 cursor-not-allowed'
+                                    : 'btn-error'
+                                }`}
+                              >
+                                {deleting === design.id ? (
+                                  <>
+                                    <div className="loading-spinner w-4 h-4 mr-2"></div>
+                                    <span>Deleting...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    <span>Delete</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
